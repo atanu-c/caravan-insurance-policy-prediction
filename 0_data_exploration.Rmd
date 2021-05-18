@@ -1,0 +1,148 @@
+---
+title: "The Insurance Company - Data Exploration"
+author: "Atanu Choudhury"
+date: "`r Sys.Date()`"
+output:
+  bookdown::pdf_document2:
+    pandoc_args: --listings
+    includes:
+      in_header: preamble.tex
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+# Introduction
+
+This problem focuses on the prediction of probable customers buying caravan insurance. The data set provided was part of the CoIL challenge in 2000. There are two main components in the problem. Firstly, identifying the customers who would like to buy the caravan insurance, and secondly an explanation of the customer behaviour which helped us in predicting the above behaviour.
+
+As the data consists of real world data, it has 86 variables, half of those relate to socio-demographic data whereas the other half relates to product ownership data. The training set consists of 5822 records, including the information of whether the customers hold a caravan insurance. The dataset for predictions have 4000 records, where the target variable is missing. The target variable for the predictions is present in another file.
+
+For the prediction task it is expected to find the set of 800 customers out of the 4000 who are more likely to buy the caravan insurance policy.
+
+For the description task, it is expected to be explaninable to a marketing professional, who is not expected to have any information about machine learning. The final outcome of Machine Learning is its profiatbility in business scenarios. Thus, an explanatory model is expected from a business perspective.
+
+The data dictionary explains the variables that were used in the dataset.
+
+## Importing libraries
+```{r}
+library(psych)
+source("read_data.R")
+```
+
+# Data Exploration
+## Reading the train data
+```{r}
+#caravan_data=read.table("ticdata2000.txt")
+head(caravan_data)
+```
+## Checking the dimensions of the data
+We can see that there are 5822 records and 86 columns as expected based on the description of the task.
+
+```{r}
+dim(caravan_data)
+```
+
+
+## Checking the structure of the data
+On evaluating the structure of the dataframe we see that all the columns have discrete values, and are of type int. It would be preferable to convert the target response to a factor as we have to use classification algorithms to predict whether the customer is a propective buyer or not.
+```{r}
+str(caravan_data)
+```
+
+## Convert target to factor
+
+```{r}
+caravan_data$V86=as.factor(caravan_data$V86)
+```
+
+## Summary of the data
+
+```{r}
+summary(caravan_data)
+
+```
+
+### Detailed summary
+
+```{r}
+round(describe(caravan_data), 3)
+```
+### Observations
+* Some of the predictors have a very high kurtosis value which means that the predictors have a heavy tail as compared to a normal distribution resulting in a lot of outliers. We will look at each variable later with respect to their distribution and outliers.
+* V1, i.e. Customer Subtype as mentioned in the [data dictionary](https://kdd.ics.uci.edu/databases/tic/dictionary.txt) has 41 different categories detailed in the link. Similarly, V4, i.e. Avg age can be identified as categories as mentioned in the [data dictionary](https://kdd.ics.uci.edu/databases/tic/dictionary.txt).
+* One major observation from the dataset is that all the predictors have discretised by the insurance company so there is not much of wrangling to be done prioir to the model buildidng process.
+* We can see that there is pattern in which the predictors have been observed. 
+	+ V1 has been identified as 41 different categories, 
+	+ V2 (number of houses) ranges from 1 to 10, and is heavy tailed towards the right which means the dataset has customers with more houses than a normally distributed one.
+	+ V3 (avg size household) ranges from 1-6, 
+	+ V4 (avg age) is identified as 6 different categories, 
+	+ V5 (customer main type) L2 is identified as 10 different categories
+	+ V6 to V43, i.e. the rest of the socio-demographic data is identified based on zipcodes, and as these are precentages mentioned in the [data dictionary](https://kdd.ics.uci.edu/databases/tic/dictionary.txt), it is likely to explain the percentage of people belong to that particular category in that customer's zipcode. For example, if V6 explains Roman Catholic as 7, it means that, 76-88% of people in that zipcode are Roman Catholic
+	+ V44 to V64 (number of policies), means that the number of policies in that category held by the customer in the range of 1 to 12, few of the predictors in this bracket are also heavy tailed.
+	+ V65 to V85 (contribution to policies) means the amount category contributed by a customer as part of that policy held. Similar to the previous predictors, this is also heavy tailed as compared to a normal distribution, which implies that customers tend to contribute more to certain categories of insurance.
+	
+	
+## Distributions of the predictors with respect to the target
+
+### Plots
+
+```{r}
+# Define a two-row by two-column plotting area.
+par(mfrow = c(2, 2))
+d=caravan_data
+# Plot a histogram and box plot for each of the predictors,
+# by response.
+for (x in colnames(d[-ncol(d)])) {
+    min_d <- min(d[ , x])
+    max_d <- max(d[ , x])
+    b <- seq(min_d, max_d, length.out = 20)
+    
+    hist(d[ , x][d$V86 == 1], col = rgb(0, 1, 0, 0.35), breaks = b,
+         main = paste("Histogram: ", x, sep = ""), xlab = x,ylim=c(0,3000))
+    
+    hist(d[ , x][d$V86 == 0], col = rgb(1, 0, 0, 0.35), breaks = b,
+         add = TRUE,ylim=c(0,3000))
+    
+    mtext(c("1", "0"), adj = c(0.25, 0.75), col = c(rgb(0, 1, 0, 0.35),rgb(1, 0, 0, 0.35)))
+    
+    boxplot(d[ , x] ~ d$V86, 
+            col="blue",
+            main = paste("Boxplot: ", x, sep = ""),
+            xlab="V86",
+            ylab=x)
+}
+```
+
+### Observations
+* As we see from the above plots for each predictor's distribution the class of 1 is very small as compared to the class of 0, in caravan policy holders. 
+* Previous observations on summarising the data have shown that the few of the predictors have more outliers or are heavy tailed as we see in V2, V6, V11 and more. Let's analyse the reason behind it. Take V2 for example which shows that the number of houses owned by the customer. Most customers would generally own a single house, and the others are considered as outliers. Interesting thing would be to think of a customer having many houses, would he be interested in buying a policy for a mobile home, or rather would he own a mobile home. Diving deeper would unfold whether these actually affect the customer's decision in buying or not.
+* For some of the predictors such as V18, v43 and similar ones show a rather even distribution of its values corresponding to the classes. The imbalance is similar, but most variables like V41, V44 and similar show a much higher imbalance.
+	
+	
+	
+## Reading the test data
+As the test data is separated into two files, we at first read them, combine the two and convert the target as factors for modelling purposes
+
+```{r}
+caravan_eval=read.table("ticeval2000.txt")
+caravan_tgts=read.table("tictgts2000.txt")
+caravan_test <- cbind(caravan_eval, V86 = caravan_tgts$V1)
+caravan_test$V86=as.factor(caravan_test$V86)
+dim(caravan_test)
+```
+### CLass imbalance
+```{r test-class-imbalance-plot, fig.cap="Imbalanced class in Test Data",}
+x <- table(caravan_test$V86)
+labels <- c("0", "1")
+pct <- round(x/sum(x)*100,2)
+lbls <- paste(pct,"%",sep="") # ad % to labels
+pie(x,labels = lbls, col=rainbow(length(lbls)),main="customers of caravan policy")
+legend("topright", labels, cex=0.8,fill=rainbow(length(x)))
+```
+
+See Figure \@ref(fig:test-class-imbalance-plot).
+
