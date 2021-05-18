@@ -1,1 +1,1 @@
-# caravan-insurance-policy-prediction-in-r
+# Caravan Insurance Policy Prediction in R
